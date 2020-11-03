@@ -1,0 +1,6 @@
+common_high_level:
+  common_key: common
+  different_value: second
+  second: second
+
+different_high_level: second
