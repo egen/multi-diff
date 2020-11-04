@@ -34,8 +34,20 @@ pub fn run() -> anyhow::Result<()> {
     for file in matches.values_of("FILES").unwrap() {
         collect(file, load_file(file)?, &mut root, &mut leaf_nodes);
     }
-    leaf_nodes.sort_by_key(|n| n.borrow().present_in());
-    println!("root:\n{:?}", root);
+    let mut combos: Vec<HashSet<String>> =
+        leaf_nodes.iter().map(|n| n.borrow().present_in()).collect();
+    combos.sort_by_key(|s| s.len());
+    combos.dedup();
+    combos.reverse();
+    for combo in combos {
+        for file in combo.iter() {
+            println!("#{}", file);
+        }
+        println!(
+            "{}",
+            serde_yaml::to_string(&root.borrow().build_combo(&combo).unwrap()).unwrap()
+        );
+    }
     Ok(())
 }
 
@@ -48,7 +60,9 @@ fn collect(
     if let Value::Mapping(mapping) = content {
         for (k, v) in mapping.into_iter() {
             let key = k.as_str().unwrap();
-            let mut node = parent.borrow_mut().add_intermediate_node(key, &parent);
+            let mut node = parent
+                .borrow_mut()
+                .add_intermediate_node(file, key, &parent);
             collect(file, v, &mut node, leaf_nodes);
         }
     } else {
@@ -65,6 +79,7 @@ enum Node {
         values: Vec<Rc<RefCell<Node>>>,
     },
     Intermediate {
+        present_in: HashSet<String>,
         children: HashMap<String, Rc<RefCell<Node>>>,
         values: Vec<Rc<RefCell<Node>>>,
         key: String,
@@ -76,17 +91,52 @@ enum Node {
         value: Value,
     },
 }
+
 impl Node {
+    fn build_combo(&self, combo: &HashSet<String>) -> Option<Value> {
+        if let Node::Leaf {
+            value, present_in, ..
+        } = self
+        {
+            return if present_in == combo {
+                Some(value.clone())
+            } else {
+                None
+            };
+        }
+        for leaf in self.values() {
+            if let Some(value) = leaf.borrow().build_combo(&combo) {
+                return Some(value);
+            }
+        }
+        let mut result = Mapping::new();
+        for (key, node) in self.children() {
+            let node = node.borrow();
+            if node.present_in().is_superset(combo) {
+                if let Some(child) = node.build_combo(combo) {
+                    result.insert(Value::String(key.clone()), child);
+                }
+            }
+        }
+        if result.len() > 0 {
+            Some(Value::Mapping(result))
+        } else {
+            None
+        }
+    }
     fn add_intermediate_node(
         &mut self,
+        file: &str,
         key: &str,
         parent: &Rc<RefCell<Node>>,
     ) -> Rc<RefCell<Node>> {
         let children = self.children_mut();
         if let Some(child) = children.get(key) {
+            child.borrow_mut().add_present_in(file);
             child.clone()
         } else {
             let node = Rc::new(RefCell::new(Node::Intermediate {
+                present_in: vec![file.to_string()].into_iter().collect(),
                 children: HashMap::new(),
                 values: Vec::new(),
                 key: key.to_string(),
@@ -132,7 +182,23 @@ impl Node {
         }
     }
 
+    fn values(&self) -> &Vec<Rc<RefCell<Node>>> {
+        match self {
+            Self::Root { values, .. } => values,
+            Self::Intermediate { values, .. } => values,
+            Self::Leaf { .. } => unreachable!(),
+        }
+    }
+
     fn children_mut(&mut self) -> &mut HashMap<String, Rc<RefCell<Node>>> {
+        match self {
+            Self::Root { children, .. } => children,
+            Self::Intermediate { children, .. } => children,
+            Self::Leaf { .. } => unreachable!(),
+        }
+    }
+
+    fn children(&self) -> &HashMap<String, Rc<RefCell<Node>>> {
         match self {
             Self::Root { children, .. } => children,
             Self::Intermediate { children, .. } => children,
@@ -148,19 +214,23 @@ impl Node {
         }
     }
 
-    fn present_in(&self) -> usize {
-        if let Self::Leaf { present_in, .. } = self {
-            present_in.len()
-        } else {
-            unreachable!()
+    fn present_in(&self) -> HashSet<String> {
+        match self {
+            Self::Leaf { present_in, .. } => present_in.clone(),
+            Self::Intermediate { present_in, .. } => present_in.clone(),
+            _ => unreachable!(),
         }
     }
 
     fn add_present_in(&mut self, file: &str) {
-        if let Self::Leaf { present_in, .. } = self {
-            present_in.insert(file.to_string());
-        } else {
-            unreachable!()
+        match self {
+            Self::Leaf { present_in, .. } => {
+                present_in.insert(file.to_string());
+            }
+            Self::Intermediate { present_in, .. } => {
+                present_in.insert(file.to_string());
+            }
+            _ => unreachable!(),
         }
     }
 }
