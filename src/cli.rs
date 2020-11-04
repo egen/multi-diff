@@ -80,7 +80,6 @@ enum Node {
         present_in: HashSet<String>,
         children: HashMap<String, Rc<RefCell<Node>>>,
         values: Vec<Rc<RefCell<Node>>>,
-        key: String,
     },
     Leaf {
         present_in: HashSet<String>,
@@ -131,7 +130,6 @@ impl Node {
                 present_in: vec![file.to_string()].into_iter().collect(),
                 children: HashMap::new(),
                 values: Vec::new(),
-                key: key.to_string(),
             }));
             children.insert(key.to_string(), node.clone());
             node
