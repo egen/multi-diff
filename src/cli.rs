@@ -41,7 +41,7 @@ pub fn run() -> anyhow::Result<()> {
     combos.reverse();
     for combo in combos {
         for file in combo.iter() {
-            println!("#{}", file);
+            println!("# {}", file);
         }
         println!(
             "{}",
@@ -60,13 +60,11 @@ fn collect(
     if let Value::Mapping(mapping) = content {
         for (k, v) in mapping.into_iter() {
             let key = k.as_str().unwrap();
-            let mut node = parent
-                .borrow_mut()
-                .add_intermediate_node(file, key, &parent);
+            let mut node = parent.borrow_mut().add_intermediate_node(file, key);
             collect(file, v, &mut node, leaf_nodes);
         }
     } else {
-        if let Some(leaf) = parent.borrow_mut().add_leaf_node(file, content, &parent) {
+        if let Some(leaf) = parent.borrow_mut().add_leaf_node(file, content) {
             leaf_nodes.push(leaf)
         }
     }
@@ -83,11 +81,9 @@ enum Node {
         children: HashMap<String, Rc<RefCell<Node>>>,
         values: Vec<Rc<RefCell<Node>>>,
         key: String,
-        parent: Rc<RefCell<Node>>,
     },
     Leaf {
         present_in: HashSet<String>,
-        parent: Rc<RefCell<Node>>,
         value: Value,
     },
 }
@@ -124,12 +120,8 @@ impl Node {
             None
         }
     }
-    fn add_intermediate_node(
-        &mut self,
-        file: &str,
-        key: &str,
-        parent: &Rc<RefCell<Node>>,
-    ) -> Rc<RefCell<Node>> {
+
+    fn add_intermediate_node(&mut self, file: &str, key: &str) -> Rc<RefCell<Node>> {
         let children = self.children_mut();
         if let Some(child) = children.get(key) {
             child.borrow_mut().add_present_in(file);
@@ -140,19 +132,13 @@ impl Node {
                 children: HashMap::new(),
                 values: Vec::new(),
                 key: key.to_string(),
-                parent: parent.clone(),
             }));
             children.insert(key.to_string(), node.clone());
             node
         }
     }
 
-    fn add_leaf_node(
-        &mut self,
-        file: &str,
-        leaf_value: Value,
-        parent: &Rc<RefCell<Node>>,
-    ) -> Option<Rc<RefCell<Node>>> {
+    fn add_leaf_node(&mut self, file: &str, leaf_value: Value) -> Option<Rc<RefCell<Node>>> {
         let values = self.values_mut();
         if let Some(found) = values.iter().find(|c| {
             if let Some(value) = c.borrow().leaf_value() {
@@ -166,7 +152,6 @@ impl Node {
         } else {
             let node = Rc::new(RefCell::new(Node::Leaf {
                 present_in: vec![file.to_string()].into_iter().collect(),
-                parent: parent.clone(),
                 value: leaf_value,
             }));
             values.push(node.clone());

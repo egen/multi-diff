@@ -1,5 +1,6 @@
 common_high_level:
   common_key: common
+  shared_a: shared_a
   different_value: first
   first: first
 

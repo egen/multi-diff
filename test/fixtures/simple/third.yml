@@ -1,0 +1,7 @@
+common_high_level:
+  common_key: common
+  different_value:
+    nested: value
+  shared_b:
+    key: value
+  third: third

@@ -1,5 +1,8 @@
 common_high_level:
   common_key: common
+  shared_a: shared_a
+  shared_b:
+    key: value
   different_value: second
   second: second
 
