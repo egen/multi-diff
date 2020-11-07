@@ -9,6 +9,7 @@ use std::{
     path::Path,
     rc::Rc,
 };
+use ansi_term::Colour::Green;
 
 fn app() -> App<'static, 'static> {
     clap_app!(cepler =>
@@ -40,8 +41,9 @@ pub fn run() -> anyhow::Result<()> {
     combos.dedup();
     combos.reverse();
     for combo in combos {
+        println!("");
         for file in combo.iter() {
-            println!("# {}", file);
+            println!("# {}", Green.paint(file));
         }
         println!(
             "{}",
