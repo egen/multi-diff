@@ -34,8 +34,10 @@ pub fn run() -> anyhow::Result<()> {
     for file in matches.values_of("FILES").unwrap() {
         collect(file, load_file(file)?, &mut root, &mut leaf_nodes);
     }
-    let mut combos: Vec<HashSet<String>> =
-        leaf_nodes.iter().map(|n| n.borrow().present_in()).collect();
+    let mut combos: Vec<HashSet<String>> = leaf_nodes
+        .iter()
+        .map(|n| n.borrow().present_in().clone())
+        .collect();
     combos.sort_by_key(|s| s.len());
     combos.dedup();
     combos.reverse();
@@ -197,10 +199,10 @@ impl Node {
         }
     }
 
-    fn present_in(&self) -> HashSet<String> {
+    fn present_in(&self) -> &HashSet<String> {
         match self {
-            Self::Leaf { present_in, .. } => present_in.clone(),
-            Self::Intermediate { present_in, .. } => present_in.clone(),
+            Self::Leaf { present_in, .. } => &present_in,
+            Self::Intermediate { present_in, .. } => &present_in,
             _ => unreachable!(),
         }
     }
